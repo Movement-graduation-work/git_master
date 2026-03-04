@@ -1,0 +1,18 @@
+[2.756s] Invoking command in '/home/slave/robot_ws/build/md400t_driver': PYTHONPATH=/home/slave/robot_ws/build/md400t_driver/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/slave/robot_ws/install/md400t_driver/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/slave/robot_ws/build/md400t_driver/build --no-deps
+[3.880s] running develop
+[4.589s] running egg_info
+[4.589s] creating md400t_driver.egg-info
+[4.590s] writing md400t_driver.egg-info/PKG-INFO
+[4.591s] writing dependency_links to md400t_driver.egg-info/dependency_links.txt
+[4.592s] writing entry points to md400t_driver.egg-info/entry_points.txt
+[4.592s] writing requirements to md400t_driver.egg-info/requires.txt
+[4.592s] writing top-level names to md400t_driver.egg-info/top_level.txt
+[4.593s] writing manifest file 'md400t_driver.egg-info/SOURCES.txt'
+[4.600s] reading manifest file 'md400t_driver.egg-info/SOURCES.txt'
+[4.603s] writing manifest file 'md400t_driver.egg-info/SOURCES.txt'
+[4.608s] running build_ext
+[4.609s] Creating /home/slave/robot_ws/install/md400t_driver/lib/python3.10/site-packages/md400t-driver.egg-link (link to .)
+[4.612s] Installing rpi4_cmdvel_motor_node script to /home/slave/robot_ws/install/md400t_driver/lib/md400t_driver
+[4.613s] 
+[4.614s] Installed /home/slave/robot_ws/build/md400t_driver
+[4.749s] Invoked command in '/home/slave/robot_ws/build/md400t_driver' returned '0': PYTHONPATH=/home/slave/robot_ws/build/md400t_driver/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/slave/robot_ws/install/md400t_driver/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/slave/robot_ws/build/md400t_driver/build --no-deps
