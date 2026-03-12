@@ -45,23 +45,22 @@
 ## 🌿 브랜치 전략
 
 ```
-main                          # 릴리스 브랜치
-develop                       # 개발 통합 브랜치
+main                          # 개발 통합 브랜치
+feat/...                      # 각 기능 테스트
 
 # 기능별 브랜치 3개
-master
-slave-rpi4 #바퀴 제어
+feat/master
+feat/slave
 UI
 ```
 
 ### 협업 워크플로우
 
 1. 기능별 브랜치에서 개발
-2. 완성되면 `develop` 브랜치로 PR
-3. 통합 테스트 후 `main`으로 병합
+2. 테스트 후 `main`으로 병합
 
 **커밋 틀**
    ```
-   git commit -m "준형: ___기능 테스트1 2 3 ..."
+   git commit -m "준형,JH: ___기능 테스트1 2 3 ..."
 
    ```
