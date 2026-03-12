@@ -1,1 +1,0 @@
-/home/slave/robot_ws/src/md400t_driver/setup.py

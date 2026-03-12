@@ -1,0 +1,171 @@
+# yolo_ros2_node.py
+
+# (1) imports
+import rclpy
+from rclpy.node import Node
+
+from sensor_msgs.msg import Image
+from std_msgs.msg import Float32MultiArray
+from cv_bridge import CvBridge
+
+from ultralytics import YOLO
+import torch
+
+from vision_msgs.msg import Detection2DArray, Detection2D, BoundingBox2D, ObjectHypothesisWithPose
+from vision_msgs.msg import ObjectHypothesis
+
+
+def set_center_2d(center_msg, cx: float, cy: float, theta: float = 0.0):
+    """
+    (1) center_msg 구조가 환경마다 달라도 안전하게 값을 채운다.
+        - case A) center_msg.x, center_msg.y, center_msg.theta
+        - case B) center_msg.position.x, center_msg.position.y, center_msg.theta
+        - (2) 없는 필드는 건드리지 않는다.
+    """
+    # (2) A: x/y/theta 직접 필드
+    if hasattr(center_msg, "x") and hasattr(center_msg, "y"):
+        center_msg.x = float(cx)
+        center_msg.y = float(cy)
+        if hasattr(center_msg, "theta"):
+            center_msg.theta = float(theta)
+        return
+
+    # (3) B: position.x/y 형태
+    if hasattr(center_msg, "position"):
+        pos = center_msg.position
+        if hasattr(pos, "x") and hasattr(pos, "y"):
+            pos.x = float(cx)
+            pos.y = float(cy)
+        if hasattr(center_msg, "theta"):
+            center_msg.theta = float(theta)
+        return
+
+    # (4) 여기까지 오면 구조가 예상 밖 -> 로그만 남김
+    #     (크래시 대신 안전하게 넘어가서 파이프라인이 안 죽게)
+    return
+
+
+class YoloNode(Node):
+    def __init__(self):
+        super().__init__('yolo_v8n_node')
+
+        # (2) ROS 인터페이스
+        self.sub = self.create_subscription(
+            Image,
+            '/camera/camera/color/image_raw',
+            self.cb_image,
+            10
+        )
+
+        # (3) (호환용) Float32MultiArray: person_state_zone_node가 받는 토픽
+        self.pub_raw = self.create_publisher(
+            Float32MultiArray,
+            '/yolo/detections_raw',
+            10
+        )
+
+        # (4) (확장용) Detection2DArray: RViz 등에서 쓰기 좋음
+        self.pub_det2d = self.create_publisher(
+            Detection2DArray,
+            '/yolo/detections',
+            10
+        )
+
+        # (5) 유틸
+        self.bridge = CvBridge()
+
+        # (6) GPU 상태 로그
+        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
+        self.get_logger().info(
+            f"[GPU CHECK] torch={torch.__version__} cuda_available={torch.cuda.is_available()} device={self.device}"
+        )
+
+        # (7) YOLO 엔진 로드
+        self.model = YOLO('/root/models/yolov8n_fp16.engine', task='detect')
+        self.get_logger().info('YOLO engine loaded')
+
+    def cb_image(self, msg: Image):
+        # (8) ROS Image -> OpenCV
+        frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+
+        # (9) YOLO 추론
+        results = self.model(frame, verbose=False)
+
+        # (10) raw(Float32MultiArray)
+        out_raw = Float32MultiArray()
+        raw_data = []
+
+        # (11) Detection2DArray
+        out_det = Detection2DArray()
+        out_det.header = msg.header
+        out_det.detections = []
+
+        if len(results) > 0 and results[0].boxes is not None:
+            for b in results[0].boxes:
+                cls  = float(b.cls.item())
+                conf = float(b.conf.item())
+                x1, y1, x2, y2 = [float(v) for v in b.xyxy[0].tolist()]
+
+                # (12) raw 누적
+                raw_data.extend([cls, conf, x1, y1, x2, y2])
+
+                # (13) Detection2D 구성
+                det = Detection2D()
+                det.header = msg.header
+
+                bbox = BoundingBox2D()
+                cx = (x1 + x2) / 2.0
+                cy = (y1 + y2) / 2.0
+                w  = (x2 - x1)
+                h  = (y2 - y1)
+
+                # ✅ 핵심: center 구조가 뭐든 안전하게 채우기
+                set_center_2d(bbox.center, cx, cy, 0.0)
+
+                bbox.size_x = float(w)
+                bbox.size_y = float(h)
+                det.bbox = bbox
+
+                hyp = ObjectHypothesis()
+                hyp.class_id = str(int(cls))
+                hyp.score = float(conf)
+
+                hyp_with_pose = ObjectHypothesisWithPose()
+                hyp_with_pose.hypothesis = hyp
+
+                det.results = [hyp_with_pose]
+                out_det.detections.append(det)
+
+        out_raw.data = raw_data
+
+        # (14) publish
+        self.pub_raw.publish(out_raw)
+        self.pub_det2d.publish(out_det)
+
+
+def main():
+    # (15) rclpy init
+    rclpy.init()
+    node = YoloNode()
+
+    try:
+        # (16) spin
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        # (17) Ctrl+C 종료
+        pass
+    finally:
+        # (18) cleanup
+        try:
+            node.destroy_node()
+        except Exception:
+            pass
+        try:
+            if rclpy.ok():
+                rclpy.shutdown()
+        except Exception:
+            pass
+
+
+if __name__ == '__main__':
+    main()

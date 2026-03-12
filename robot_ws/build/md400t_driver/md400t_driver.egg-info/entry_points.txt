@@ -1,3 +1,0 @@
-[console_scripts]
-rpi4_cmdvel_motor_node = md400t_driver.rpi4_cmdvel_motor_node:main
-
