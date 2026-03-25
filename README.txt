@@ -60,6 +60,14 @@ UI
 2. 테스트 후 `main`으로 병합
 
 **커밋 틀**
+
+
+-------------
+/root/yee_g4_ws/
+├── src/
+│   └── ydlidar_ros2_driver/
+└── config/
+    └── G4_yee.yaml
    ```
    git commit -m "준형,JH: ___기능 테스트1 2 3 ..."
 
