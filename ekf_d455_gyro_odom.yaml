@@ -1,0 +1,30 @@
+ekf_filter_node:
+  ros__parameters:
+    frequency: 30.0
+    sensor_timeout: 0.2
+    two_d_mode: true
+    publish_tf: false
+
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom
+
+    # (2) 휠 odom에서는 전진 속도만 우선 사용
+    odom0: /odom
+    odom0_queue_size: 10
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  false, false,
+                   false, false, false,
+                   false, false, false]
+
+    # (3) IMU에서는 yaw rate(gyro z)만 사용
+    imu0: /camera/camera/gyro/sample
+    imu0_queue_size: 50
+    imu0_nodelay: true
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
