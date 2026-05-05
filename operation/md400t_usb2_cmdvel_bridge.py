@@ -96,8 +96,12 @@ class MD400TUsb2CmdVelBridge(Node):
         right_cmd = max(-self.max_speed_cmd, min(self.max_speed_cmd, right_cmd))
         left_cmd = max(-self.max_speed_cmd, min(self.max_speed_cmd, left_cmd))
 
-        right_cmd = self.apply_min_effective(right_cmd)
-        left_cmd = self.apply_min_effective(left_cmd)
+        # When driving and turning at the same time, the inner wheel must be
+        # allowed to slow down. Boosting both sides to min_effective makes turns
+        # look like straight driving.
+        if abs(linear_x) < 0.01 or abs(angular_z) < 0.01:
+            right_cmd = self.apply_min_effective(right_cmd)
+            left_cmd = self.apply_min_effective(left_cmd)
 
         if self.reverse_right:
             right_cmd = -right_cmd
@@ -129,8 +133,11 @@ class MD400TUsb2CmdVelBridge(Node):
             self.prev_left_cmd = left_cmd
 
     def send_speed(self, ser, cmd_id: int, speed: int):
-        ser.write(build_single_speed_frame(self.dev_id, cmd_id, speed))
-        ser.flush()
+        try:
+            ser.write(build_single_speed_frame(self.dev_id, cmd_id, speed))
+            ser.flush()
+        except Exception as exc:
+            self.get_logger().warn(f'serial write failed cmd=0x{cmd_id:02X} speed={speed}: {exc}')
 
     def stop_all(self):
         try:

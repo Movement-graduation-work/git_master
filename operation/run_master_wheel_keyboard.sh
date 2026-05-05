@@ -24,7 +24,7 @@ python3 "$MASTER_DIR/md400t_usb2_cmdvel_bridge.py" \
   -p right_cmd_id:=0x82 \
   -p left_cmd_id:=0x82 \
   -p wheel_base:=0.32 \
-  -p speed_scale:=300.0 \
+  -p speed_scale:=400.0 \
   -p max_speed_cmd:=300 \
   -p min_effective_cmd:=80 \
   -p send_hz:=50.0 \
@@ -36,7 +36,7 @@ python3 "$MASTER_DIR/cmd_vel_udp_sender.py" \
   -p slave_ip:="$SLAVE_IP" \
   -p slave_port:="$SLAVE_PORT" \
   -p wheel_base:=0.32 \
-  -p speed_scale:=300.0 \
+  -p speed_scale:=400.0 \
   -p max_speed_cmd:=300 \
   -p min_effective_cmd:=80 \
   > /tmp/cmd_vel_udp_sender.log 2>&1 &

@@ -57,8 +57,9 @@ class CmdVelUdpSender(Node):
         right_cmd = max(-self.max_speed_cmd, min(self.max_speed_cmd, right_cmd))
         left_cmd = max(-self.max_speed_cmd, min(self.max_speed_cmd, left_cmd))
 
-        right_cmd = self.apply_min_effective(right_cmd)
-        left_cmd = self.apply_min_effective(left_cmd)
+        if abs(linear_x) < 0.01 or abs(angular_z) < 0.01:
+            right_cmd = self.apply_min_effective(right_cmd)
+            left_cmd = self.apply_min_effective(left_cmd)
 
         if self.reverse_right:
             right_cmd = -right_cmd

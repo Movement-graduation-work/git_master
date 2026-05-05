@@ -26,7 +26,7 @@ class PrettyTeleop(Node):
         self.last_publish = 0.0
         self.msg_count = 0
         self.last_motion_key_time = 0.0
-        self.hold_timeout = 0.50
+        self.hold_timeout = 0.35
         self.auto_stop = False
 
     def clamp(self, value):
