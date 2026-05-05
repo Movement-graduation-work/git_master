@@ -1,74 +1,25 @@
-# 🤖 무선 추종 트랙커 (Wireless Tracking Robot)
+터미널 -> 도커 이동
+docker start yee_humble_g4
+docker exec -it yee_humble_g4 bash
 
-졸업작품 프로젝트 - 마스터-슬레이브 자율 내비게이션 로봇 시스템 구성 참조 버전
+rviz2용 2번 도커 실행
+docker start rviz_container
+docker exec -it rviz_container bash
 
-## 📋 프로젝트 개요
+ros2 run ydlidar_ros2_driver ydlidar_ros2_driver_node --ros-args --params-file /root/ydlidar_retry.yaml
 
-공항이나 대형 시설에서 사용자가 지정한 목적지로 자동으로 이동하면서 장애물을 회피하는 로봇 시스템입니다.
+라이다 실행 
 
-### 주요 기능
-- 🗺️ **자동 내비게이션**: 지도에서 목적지 선택 시 자동 경로 계획
-- 👁️ **장애물 감지 및 회피**: 카메라와 ML로 사람/물체 인식 및 회피
-- 🤝 **마스터-슬레이브 협업**: 마스터 이동 시 슬레이브가 자동 추종
-- 📱 **웹 기반 UI**: 터치 디스플레이로 제어 및 모니터링
+ros2 run cartographer_ros cartographer_node -configuration_directory /root/ydlidar_slam/config -configuration_basename ydlidar_2d.lua
 
-## 🏗️ 시스템 구조
-
-```
-┌─────────────────────────────────────────────┐
-│  마스터 (Jetson Orin Nano)                   │
-│  - RealSense 카메라 + ML 물체 인식            │
-│  - 사람 추종                                 │
-│  - 경로 계획 및 장애물 회피                    │
-│  - 슬레이브 제어 명령 전송                     │
-│  - 공항 게이트 1 버튼                         │
-│  - 긴급 중지 버튼                             │
-└──────────────┬──────────────────────────────┘
-               │ WiFi (UDP)
-               ↓
-┌─────────────────────────────────────────────┐
-│  슬레이브 (Raspberry Pi)                     │
-│  - 마스터 명령 수신                           │
-│  - 단순 하드웨어 제어                         │
-│  - 마스터 추종                               │
-└─────────────────────────────────────────────┘
-```
-
-## 📁 디렉토리 구조
-
-```
+카토그래퍼 실행 
 
 
-```
+ ros2 run cartographer_ros cartographer_occupancy_grid_node -resolution 0.05 -publish_period_sec 1.0
+
+그 이후 토픽 발행 
 
 
-## 🌿 브랜치 전략
+ros2 run nav2_map_server map_saver_cli -f /root/maps/my_map 
 
-```
-main                          # 개발 통합 브랜치
-feat/...                      # 각 기능 테스트
-
-# 기능별 브랜치 3개
-feat/master
-feat/slave
-UI
-```
-
-### 협업 워크플로우
-
-1. 기능별 브랜치에서 개발
-2. 테스트 후 `main`으로 병합
-
-**커밋 틀**
-
-
--------------
-/root/yee_g4_ws/
-├── src/
-│   └── ydlidar_ros2_driver/
-└── config/
-    └── G4_yee.yaml
-   ```
-   git commit -m "준형,JH: ___기능 테스트1 2 3 ..."
-
-   ```
+마지막 저장
