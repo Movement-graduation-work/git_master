@@ -1,0 +1,192 @@
+# (1) import
+import collections
+import rclpy
+from rclpy.node import Node
+
+# (2) 메시지 타입
+from std_msgs.msg import Float32MultiArray  # (2-1) /yolo/detections
+from std_msgs.msg import String             # (2-2) /perception/state, /perception/zone
+from std_msgs.msg import Bool               # (2-3) /perception/human_detected
+from std_msgs.msg import Float32            # (2-4) /perception/best_conf
+from sensor_msgs.msg import CameraInfo      # (2-5) 카메라 폭(width) 얻기
+
+class PersonStateZoneNode(Node):
+    def __init__(self):
+        # (3) 노드 생성
+        super().__init__('person_state_zone_node')
+
+        # (4) 파라미터(값) 초기화
+        self.declare_parameter('conf_threshold', 0.40)  # (4-1) 사람 conf 기준
+        self.declare_parameter('publish_hz', 10.0)      # (4-2) 상태 publish 주기
+
+        # (4-3) 안정화(히스테리시스)
+        self.declare_parameter('win_size', 4)           # (4-4) 최근 프레임 버퍼 크기
+        self.declare_parameter('on_count', 2)           # (4-5) 버퍼 내 person True 최소 개수 -> ON
+        self.declare_parameter('off_streak', 2)         # (4-6) 연속 미감지 프레임 수 -> OFF
+
+        self.conf_threshold = float(self.get_parameter('conf_threshold').value)
+        self.publish_hz = float(self.get_parameter('publish_hz').value)
+
+        self.win_size = int(self.get_parameter('win_size').value)
+        self.on_count = int(self.get_parameter('on_count').value)
+        self.off_streak = int(self.get_parameter('off_streak').value)
+
+        # (5) 상태 변수
+        self.buf = collections.deque(maxlen=max(self.win_size, 1))  # (5-1) 최근 프레임 person 여부
+        self.no_person_run = 0                                      # (5-2) 연속 미감지 프레임 수
+        self.human = False                                          # (5-3) 현재 상태
+
+        # (5-4) zone 계산용: 마지막으로 잡힌 사람의 cx와 conf
+        self.image_width = None   # (5-5) camera_info로부터 얻음
+        self.best_conf = 0.0
+        self.best_cx = None       # (5-6) bbox 중심 x (픽셀 또는 정규화)
+
+        # (6) 구독 설정
+        self.sub_det = self.create_subscription(
+            Float32MultiArray,
+            '/yolo/detections_raw',
+            self.on_detections,
+            10
+        )
+
+        self.sub_info = self.create_subscription(
+            CameraInfo,
+            '/camera/camera/color/camera_info',
+            self.on_camera_info,
+            10
+        )
+
+        # (7) 퍼블리셔 설정
+        self.pub_state = self.create_publisher(String, '/perception/state', 10)
+        self.pub_bool  = self.create_publisher(Bool,   '/perception/human_detected', 10)
+        self.pub_zone  = self.create_publisher(String, '/perception/zone', 10)
+        self.pub_conf  = self.create_publisher(Float32, '/perception/best_conf', 10)
+
+        # (8) 타이머
+        period = 1.0 / max(self.publish_hz, 0.1)
+        self.timer = self.create_timer(period, self.publish_all)
+
+        self.get_logger().info(
+            f"[person_state_zone_node] conf_threshold={self.conf_threshold}, publish_hz={self.publish_hz}, "
+            f"win_size={self.win_size}, on_count={self.on_count}, off_streak={self.off_streak}"
+        )
+
+    def on_camera_info(self, msg: CameraInfo):
+        # (9) 카메라 폭 저장
+        if msg.width > 0:
+            self.image_width = int(msg.width)
+
+    def on_detections(self, msg: Float32MultiArray):
+        # (10) detections 수신
+        data = list(msg.data)
+
+        # (11) 이번 프레임에서 "사람(class_id=0)" 중 최고 conf 1개 선택
+        found_person = False
+        best_person_conf = -1.0
+        best_person_bbox = None  # (11-1) [x1,y1,x2,y2]
+
+        if len(data) >= 6 and (len(data) % 6 == 0):
+            for i in range(0, len(data), 6):
+                class_id = int(round(data[i + 0]))  # (11-2) class_id
+                conf     = float(data[i + 1])       # (11-3) conf
+                x1       = float(data[i + 2])
+                y1       = float(data[i + 3])
+                x2       = float(data[i + 4])
+                y2       = float(data[i + 5])
+
+                if class_id == 0 and conf >= self.conf_threshold:
+                    if conf > best_person_conf:
+                        best_person_conf = conf
+                        best_person_bbox = (x1, y1, x2, y2)
+
+        if best_person_bbox is not None:
+            found_person = True
+            self.best_conf = float(best_person_conf)
+            x1, y1, x2, y2 = best_person_bbox
+            self.best_cx = 0.5 * (x1 + x2)  # (11-4) bbox 중심 x
+
+        # (12) 안정화 버퍼 업데이트
+        self.buf.append(found_person)
+
+        if found_person:
+            self.no_person_run = 0
+        else:
+            self.no_person_run += 1
+            self.best_conf = 0.0
+            self.best_cx = None
+
+        # (13) 상태 업데이트(히스테리시스)
+        # (13-1) OFF: 연속 off_streak 프레임 미감지일 때만
+        if self.human and self.no_person_run >= self.off_streak:
+            self.human = False
+            self.get_logger().info("[state] NO_HUMAN")
+
+        # (13-2) ON: 최근 win_size 프레임 중 on_count 이상 감지면
+        if (not self.human) and (sum(self.buf) >= self.on_count):
+            self.human = True
+            self.get_logger().info("[state] HUMAN_DETECTED")
+
+    def calc_zone(self):
+        # (14) zone 계산
+        if not self.human or self.best_cx is None:
+            return "UNKNOWN"
+
+        cx = float(self.best_cx)
+
+        # (14-1) image_width가 있으면 픽셀 기준으로 3등분
+        if self.image_width is not None and self.image_width > 0:
+            w = float(self.image_width)
+            if cx < (w / 3.0):
+                return "LEFT"
+            elif cx < (2.0 * w / 3.0):
+                return "CENTER"
+            else:
+                return "RIGHT"
+
+        # (14-2) 폭을 모르면: 좌표가 0~1 정규화라고 "추정"해서 3등분
+        #       (x2가 1.x 이하로 나오는 경우가 있어서 간단 가드)
+        if 0.0 <= cx <= 1.5:
+            if cx < (1.0 / 3.0):
+                return "LEFT"
+            elif cx < (2.0 / 3.0):
+                return "CENTER"
+            else:
+                return "RIGHT"
+
+        return "UNKNOWN"
+
+    def publish_all(self):
+        # (15) publish
+        state = "HUMAN_DETECTED" if self.human else "NO_HUMAN"
+        zone = self.calc_zone()
+
+        msg_state = String(); msg_state.data = state
+        msg_bool  = Bool();   msg_bool.data = bool(self.human)
+        msg_zone  = String(); msg_zone.data = zone
+        msg_conf  = Float32(); msg_conf.data = float(self.best_conf)
+
+        self.pub_state.publish(msg_state)
+        self.pub_bool.publish(msg_bool)
+        self.pub_zone.publish(msg_zone)
+        self.pub_conf.publish(msg_conf)
+
+def main():
+    # (16) init
+    rclpy.init()
+
+    # (17) node 생성
+    node = PersonStateZoneNode()
+
+    try:
+        # (18) spin
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # (19) shutdown
+        node.destroy_node()
+        rclpy.shutdown()
+
+# (20) entry
+if __name__ == '__main__':
+    main()
